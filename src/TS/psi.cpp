@@ -7,12 +7,17 @@ using namespace TS::PSI;
 using namespace TS::Description;
 
 Section::Section( int32_t id, DescriptorParser *des_parser)
-	: check_id( id)
 {
+	check_id			= id;
 	descriptor_parser	= des_parser;
 	ts_packet			= NULL;
 
 	clear();
+}
+
+Section::Section( const Section &src)
+{
+	copy( &src, false);
 }
 
 Section::~Section()
@@ -20,7 +25,32 @@ Section::~Section()
 	clear();
 }
 
-Section::STATUS Section::append( TSPacket *p, uint32_t *payload_index)
+void Section::copy(  const Section *src, bool recursive)
+{
+	table_id					= src->table_id;
+	section_syntax_indicator	= src->section_syntax_indicator;
+	private_indicator			= src->private_indicator;
+	reserved_1					= src->reserved_1;
+	section_length				= src->section_length;
+	CRC_32						= src->CRC_32;
+
+	section_continue			= src->section_continue;
+	erase_buffer				= src->erase_buffer;
+	check_crc					= src->check_crc;
+	descriptor_parser			= src->descriptor_parser;
+
+	check_id					= src->check_id;
+	ts_pid						= src->ts_pid;
+	prev_ts_counter				= src->prev_ts_counter;
+	parse_end					= src->parse_end;
+
+	if( !erase_buffer) {
+		section_buffer			= section_buffer;
+	}
+	ts_packet					= NULL;
+}
+
+Section::STATUS Section::append( const TSPacket *p, uint32_t *payload_index)
 {
 	uint8_t		*payload, *begin, *end;
 	uint32_t	payload_len;
@@ -131,6 +161,7 @@ Section::STATUS Section::append( TSPacket *p, uint32_t *payload_index)
 	else {
 		section_buffer.reset();
 	}
+	parse_end = true;
 
 	if( payload_len > 0 && payload[ 0] != 0xFF) {
 		*payload_index = payload - begin;
@@ -141,7 +172,7 @@ Section::STATUS Section::append( TSPacket *p, uint32_t *payload_index)
 
 bool Section::finish()
 {
-	return !section_continue;
+	return parse_end;
 }
 
 Section::STATUS Section::getTSPacket( TSPacket **packet, uint8_t *counter, AdaptationField *af, bool next)
@@ -243,6 +274,7 @@ void Section::clear()
 	section_continue	= false;
 	erase_buffer		= true;
 	check_crc			= true;
+	parse_end			= false;
 
 	if( ts_packet) {
 		delete ts_packet;
@@ -288,6 +320,29 @@ int32_t Section::parseDescriptors( const uint8_t *data, const uint16_t len, DESC
 	return index;
 }
 
+bool Section::cloneDescriptors( DESCRIPTORS *dst, const DESCRIPTORS *src)
+{
+	DescriptorParser		parser;
+	DescriptorParser		*p = descriptor_parser;
+	Descriptor				*des;
+
+	DESCRIPTORS::const_iterator	src_it;
+
+	if( !p) {
+		p = &parser;
+	}
+
+	dst->clear();
+	for( src_it = src->begin(); src_it != src->end(); src_it++) {
+		des = p->clone( *src_it);
+		if( !des) {
+			return false;
+		}
+		dst->push_back( des);
+	}
+	return true;
+}
+
 void Section::clearDescriptors( DESCRIPTORS *list)
 {
 	DESCRIPTORS::iterator i;
@@ -300,7 +355,7 @@ void Section::clearDescriptors( DESCRIPTORS *list)
 	list->clear();
 }
 
-Section::STATUS Section::checkTSPacket( TSPacket *p)
+Section::STATUS Section::checkTSPacket( const TSPacket *p)
 {
 	uint16_t	pid		= p->getPID();
 	uint8_t		counter	= p->getHeader()->getContinuityCounter();
@@ -413,8 +468,30 @@ ProgramSpecificInfomation::ProgramSpecificInfomation( int32_t id, DescriptorPars
 	last_section_number			= 0x00;
 }
 
+ProgramSpecificInfomation::ProgramSpecificInfomation( const ProgramSpecificInfomation &src)
+	: Section( src)
+{
+	copy( &src, false);
+}
+
 ProgramSpecificInfomation::~ProgramSpecificInfomation()
 {
+}
+
+void ProgramSpecificInfomation::copy( const Section *src, bool recursive)
+{
+	if( recursive) {
+		Section::copy( src, recursive);
+	}
+
+	const ProgramSpecificInfomation *psi = (const ProgramSpecificInfomation *)src;
+
+	psi_id.transport_stream_id	= psi->psi_id.transport_stream_id;
+	reserved_2					= psi->reserved_2;
+	version_number				= psi->version_number;
+	current_next_indicator		= psi->current_next_indicator;
+	section_number				= psi->section_number;
+	last_section_number			= psi->last_section_number;
 }
 
 ProgramSpecificInfomation::STATUS ProgramSpecificInfomation::parse( SectionBuffer &sec)
@@ -434,12 +511,6 @@ ProgramSpecificInfomation::STATUS ProgramSpecificInfomation::parse( SectionBuffe
 		sec += PSI_HEADER_SIZE;
 	}
 
-	return parseSection( sec);
-}
-
-ProgramSpecificInfomation::STATUS ProgramSpecificInfomation::parseSection( SectionBuffer &sec)
-{
-	erase_buffer = true;
 	return SUCCESS;
 }
 
@@ -475,9 +546,34 @@ PAT::PAT( DescriptorParser *des_parser)
 	program_map_PID.clear();
 }
 
+PAT::PAT( const PAT &src)
+	: ProgramSpecificInfomation( src)
+{
+	copy( &src, false);
+}
+
 PAT::~PAT()
 {
 	program_map_PID.clear();
+}
+
+void PAT::copy( const Section *src, bool recursive)
+{
+	if( recursive) {
+		ProgramSpecificInfomation::copy( src, recursive);
+	}
+
+	const PAT *pat = (const PAT *)src;
+
+	network_PID		= pat->network_PID;
+	program_map_PID	= pat->program_map_PID;
+}
+
+PAT& PAT::operator=( const PAT &src)
+{
+	clear();
+	copy( &src);
+	return *this;
 }
 
 void PAT::clear()
@@ -486,10 +582,15 @@ void PAT::clear()
 	ProgramSpecificInfomation::clear();
 }
 
-PAT::STATUS PAT::parseSection( SectionBuffer &sec)
+PAT::STATUS PAT::parse( SectionBuffer &sec)
 {
 	uint32_t	i;
 	uint16_t	prog_num, pid;
+	
+	STATUS state = ProgramSpecificInfomation::parse( sec);
+	if( state != SUCCESS) {
+		return state;
+	}
 
 	for( i = 0; i < sec.length() - CRC32_SIZE; i += 4) {
 		prog_num	=  (sec[ i + 0] << 8) + sec[ i + 1];
@@ -554,9 +655,51 @@ PMT::PMT( DescriptorParser *des_parser)
 {
 }
 
+PMT::PMT( const PMT &src)
+	: ProgramSpecificInfomation( src)
+{
+	copy( &src);
+}
+
 PMT::~PMT()
 {
 	clearPMT();
+}
+
+void PMT::copy( const Section *src, bool recursive)
+{
+	if( recursive) {
+		ProgramSpecificInfomation::copy( src, recursive);
+	}
+
+	const PMT *pmt = (const PMT *)src;
+
+	reserved_3			= pmt->reserved_3;
+	PCR_PID				= pmt->PCR_PID;
+	reserved_4			= pmt->reserved_4;
+	program_info_length	= pmt->program_info_length;
+
+	cloneDescriptors( &program_info_descriptors, &pmt->program_info_descriptors);
+
+	ELEMENT						e;
+	ELEMENTS::const_iterator	i;
+	for( i = pmt->elements.begin(); i != pmt->elements.end(); i++) {
+		e.stream_type			= i->stream_type;
+		e.reserved_1			= i->reserved_1;
+		e.elementary_PID		= i->elementary_PID;
+		e.reserved_2			= i->reserved_2;
+		e.ES_info_length		= i->ES_info_length;
+
+		this->cloneDescriptors( &e.descriptors, &i->descriptors);
+		elements.push_back( e);
+	}
+}
+
+PMT& PMT::operator=( const PMT &src)
+{
+	clear();
+	copy( &src);
+	return *this;
 }
 
 void PMT::clear()
@@ -565,12 +708,17 @@ void PMT::clear()
 	ProgramSpecificInfomation::clear();
 }
 
-PMT::STATUS PMT::parseSection( SectionBuffer &sec)
+PMT::STATUS PMT::parse( SectionBuffer &sec)
 {
 	int32_t		size = 0;
 	ELEMENT		e;
 	
 	clearPMT();
+	
+	STATUS state = ProgramSpecificInfomation::parse( sec);
+	if( state != SUCCESS) {
+		return state;
+	}
 
 	if( sec.length() < PMS_HEADER_SIZE) {
 		return ERROR_PARSE_SECTION;
@@ -744,11 +892,16 @@ void CAT::clear()
 	ProgramSpecificInfomation::clear();
 }
 
-CAT::STATUS CAT::parseSection( SectionBuffer &sec)
+CAT::STATUS CAT::parse( SectionBuffer &sec)
 {
 	int32_t         size = 0;
 
 	clearCAT();
+	
+	STATUS state = ProgramSpecificInfomation::parse( sec);
+	if( state != SUCCESS) {
+		return state;
+	}
 
 	while( sec.length() > CRC32_SIZE) {
 		size = parseDescriptors( sec, sec.length() - CRC32_SIZE, &descriptors);
@@ -787,11 +940,16 @@ void TSDT::clear()
 	ProgramSpecificInfomation::clear();
 }
 
-TSDT::STATUS TSDT::parseSection( SectionBuffer &sec)
+TSDT::STATUS TSDT::parse( SectionBuffer &sec)
 {
 	int32_t         size = 0;
 
 	clearTSDT();
+	
+	STATUS state = ProgramSpecificInfomation::parse( sec);
+	if( state != SUCCESS) {
+		return state;
+	}
 
 	while( sec.length() > CRC32_SIZE) {
 		size = parseDescriptors( sec, sec.length() - CRC32_SIZE, &descriptors);

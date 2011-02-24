@@ -92,7 +92,7 @@ public:
 		}
 	}
 
-	uint8_t*	begin() {
+	uint8_t*	begin() const {
 		return _data;
 	}
 

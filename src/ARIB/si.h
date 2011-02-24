@@ -37,8 +37,7 @@ public:
 	virtual ~ServiceInformation();
 
 protected:
-	STATUS			parse( SectionBuffer &sec);
-	virtual STATUS	parseSection( SectionBuffer &sec);
+	virtual STATUS	parse( SectionBuffer &sec);
 };
 
 class NIT : public ServiceInformation
@@ -70,7 +69,7 @@ public:
 	void	clear();
 	
 private:
-	STATUS	parseSection( SectionBuffer &sec);
+	STATUS	parse( SectionBuffer &sec);
 	bool	checkID( uint8_t id);
 
 	void	clearNIT();
@@ -109,7 +108,7 @@ public:
 	void	clear();
 	
 private:
-	STATUS	parseSection( SectionBuffer &sec);
+	STATUS	parse( SectionBuffer &sec);
 	bool	checkID( uint8_t id);
 
 	void	clearSDT();
@@ -149,10 +148,59 @@ public:
 	void	clear();
 	
 private:
-	STATUS	parseSection( SectionBuffer &sec);
+	STATUS	parse( SectionBuffer &sec);
 	bool	checkID( uint8_t id);
 
 	void	clearEIT();
+};
+
+// TDT
+class TDT : public Section
+{
+public:
+	static const int32_t	TDT_ID			= 0x70;
+private:
+	static const uint32_t	TD_PARSE_SIZE	= 5;
+
+public:
+	time_t			JST_time;						// 40bit
+	uint8_t			reserved_2;						// 4bit
+	uint16_t		descriptors_loop_length;		// 12bit
+	DESCRIPTORS		descriptors;
+
+
+	TDT( TS::Description::DescriptorParser *des_parser = NULL);
+	virtual ~TDT();
+	
+protected:
+	virtual STATUS	parse( SectionBuffer &sec);
+	virtual bool	checkID( uint8_t id);
+};
+
+// TOT
+class TOT : public TDT
+{
+public:
+	static const int32_t	TOT_ID			= 0x73;
+private:
+	static const uint32_t	TO_PARSE_SIZE	= 2;
+
+public:
+	uint8_t			reserved_2;						// 4bit
+	uint16_t		descriptors_loop_length;		// 12bit
+	DESCRIPTORS		descriptors;
+
+
+	TOT( TS::Description::DescriptorParser *des_parser = NULL);
+	virtual ~TOT();
+
+	void	clear();
+
+private:
+	STATUS	parse( SectionBuffer &sec);
+	bool	checkID( uint8_t id);
+
+	void	clearTOT();
 };
 
 		}

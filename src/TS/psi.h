@@ -16,9 +16,6 @@ protected:
 	static const uint32_t	SECTION_PARSE_SIZE	= 3;
 	static const uint32_t	CRC32_SIZE			= 4;
 
-private:
-	const int32_t		check_id;
-
 public:
 	typedef	std::list< TS::Description::Descriptor *>	DESCRIPTORS;
 	enum STATUS {
@@ -58,6 +55,8 @@ protected:
 	 TS::Description::DescriptorParser	*descriptor_parser;
 
 private:
+	bool				parse_end;
+	int32_t				check_id;
 	uint16_t			ts_pid;
 	uint8_t				prev_ts_counter;
 	SectionBuffer		section_buffer;
@@ -68,23 +67,29 @@ public:
 	Section( int32_t id = -1, TS::Description::DescriptorParser *des_parser = NULL);
 	virtual ~Section();
 
-	STATUS				append( TSPacket *p, uint32_t *payload_index);
+protected:
+	Section( const Section &src);
+
+public:
+
+	STATUS				append( const TSPacket *p, uint32_t *payload_index);
 	bool				finish();
 	virtual void		clear();
-
 	STATUS				getTSPacket( TSPacket **packet, uint8_t *counter, AdaptationField *af, bool next = true);
 
 protected:
+	virtual void		copy( const Section *src, bool recursive = true);
+
 	int32_t				parseDescriptors( const uint8_t *data, const uint16_t len, DESCRIPTORS *list);
+	bool				cloneDescriptors( DESCRIPTORS *dst, const DESCRIPTORS *src);
 	void				clearDescriptors( DESCRIPTORS *list);
 
-private:
-	STATUS				checkTSPacket( TSPacket *p);
-	void				parseHeader( SectionBuffer &sec);
 
+private:
+	STATUS				checkTSPacket( const TSPacket *p);
+	void				parseHeader( SectionBuffer &sec);
 	virtual STATUS		parse( SectionBuffer &sec);
 	virtual bool		checkID( uint8_t id);
-
 	STATUS				createBytes();
 	virtual STATUS		getBytes( SectionBuffer &buf);
 };
@@ -112,12 +117,13 @@ public:
 	ProgramSpecificInfomation( int32_t id = -1, TS::Description::DescriptorParser *des_parser = NULL);
 	virtual ~ProgramSpecificInfomation();
 
-
 protected:
-	STATUS			parse( SectionBuffer &sec);
-	virtual STATUS	parseSection( SectionBuffer &sec);
+	ProgramSpecificInfomation( const ProgramSpecificInfomation &src);
 
+	virtual STATUS	parse( SectionBuffer &sec);
 	virtual STATUS	getBytes( SectionBuffer &buf);
+	//void			copy( const ProgramSpecificInfomation *src);
+	virtual void	copy( const Section *src, bool recursive = true);
 };
 
 
@@ -132,14 +138,17 @@ public:
 	PROGRAM_MAP	program_map_PID;
 
 	PAT( TS::Description::DescriptorParser *des_parser = NULL);
+	PAT( const PAT &src);
 	virtual ~PAT();
 
+public:
 	void			clear();
+	PAT&			operator=( const PAT &src);
 
 private:
-	STATUS			parseSection( SectionBuffer &sec);
-
+	STATUS			parse( SectionBuffer &sec);
 	STATUS			getBytes( SectionBuffer &buf);
+	void			copy( const Section *src, bool recursive = true);
 };
 
 
@@ -169,16 +178,18 @@ public:
 	ELEMENTS			elements;
 
 	PMT( TS::Description::DescriptorParser *des_parser = NULL);
+	PMT( const PMT &src);
 	virtual ~PMT();
 
 	void			clear();
 	void			eraseElement( uint8_t stream_type);
+	PMT&			operator=( const PMT &src);
 
 private:
-	STATUS			parseSection( SectionBuffer &sec);
-	void			clearPMT();
-
+	STATUS			parse( SectionBuffer &sec);
 	STATUS			getBytes( SectionBuffer &buf);
+	void			clearPMT();
+	void			copy( const Section *src, bool recursive = true);
 
 };
 
@@ -196,7 +207,7 @@ public:
 	void			clear();
 
 private:
-    STATUS			parseSection( SectionBuffer &sec);
+    STATUS			parse( SectionBuffer &sec);
     void			clearCAT();
 };
 
@@ -214,7 +225,7 @@ public:
 	void			clear();
 
 private:
-    STATUS			parseSection( SectionBuffer &sec);
+    STATUS			parse( SectionBuffer &sec);
     void			clearTSDT();
 };
 

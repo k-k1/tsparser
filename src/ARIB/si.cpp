@@ -39,15 +39,8 @@ ServiceInformation::STATUS ServiceInformation::parse( SectionBuffer &sec)
 		sec += SI_PARSE_SIZE;
 	}
 
-	return parseSection( sec);
-}
-
-ServiceInformation::STATUS ServiceInformation::parseSection( SectionBuffer &sec)
-{
-	erase_buffer = false;
 	return SUCCESS;
 }
-
 
 
 NIT::NIT( DescriptorParser *des_parser)
@@ -70,12 +63,17 @@ void NIT::clear()
 	ServiceInformation::clear();
 }
 
-NIT::STATUS NIT::parseSection( SectionBuffer &sec)
+NIT::STATUS NIT::parse( SectionBuffer &sec)
 {
 	int32_t		size = 0;
 	STREAM		s;
 	
 	clearNIT();
+	
+	STATUS state = ServiceInformation::parse( sec);
+	if( state != SUCCESS) {
+		return state;
+	}
 
 	if( sec.length() < 2) {
 		return ERROR_PARSE_SECTION;
@@ -162,12 +160,17 @@ void SDT::clear()
 	ServiceInformation::clear();
 }
 
-SDT::STATUS SDT::parseSection( SectionBuffer &sec)
+SDT::STATUS SDT::parse( SectionBuffer &sec)
 {
 	int32_t		size = 0;
 	SERVICE		s;
 	
 	clearSDT();
+	
+	STATUS state = ServiceInformation::parse( sec);
+	if( state != SUCCESS) {
+		return state;
+	}
 	
 	if( sec.length() < SD_PARSE_SIZE) {
 		return ERROR_PARSE_SECTION;
@@ -244,12 +247,17 @@ void EIT::clear()
 	ServiceInformation::clear();
 }
 
-EIT::STATUS EIT::parseSection( SectionBuffer &sec)
+EIT::STATUS EIT::parse( SectionBuffer &sec)
 {
 	int32_t		size = 0;
 	EVENT		e;
 	
 	clearEIT();
+	
+	STATUS state = ServiceInformation::parse( sec);
+	if( state != SUCCESS) {
+		return state;
+	}
 	
 	if( sec.length() < EI_PARSE_SIZE) {
 		return ERROR_PARSE_SECTION;
@@ -303,3 +311,104 @@ void EIT::clearEIT()
 	}
 	events.clear();
 }
+
+
+
+TDT::TDT( DescriptorParser *des_parser)
+	: Section( -1, des_parser)
+{
+}
+
+TDT::~TDT()
+{
+}
+
+TDT::STATUS TDT::parse( SectionBuffer &sec)
+{
+	int32_t		size = 0;
+	
+	if( sec.length() < TD_PARSE_SIZE) {
+		return ERROR_PARSE_SECTION;
+	}
+	
+	JST_time				= Converter::date( &sec[ 0]);
+	sec += TD_PARSE_SIZE;
+	
+	erase_buffer = true;
+	return SUCCESS;
+}
+
+bool TDT::checkID( uint8_t id)
+{
+	return (id == TDT_ID);
+}
+
+
+
+
+TOT::TOT( DescriptorParser *des_parser)
+	: TDT( des_parser)
+{
+}
+
+TOT::~TOT()
+{
+	clearTOT();
+}
+
+void TOT::clear()
+{
+	clearTOT();
+	Section::clear();
+}
+
+TOT::STATUS TOT::parse( SectionBuffer &sec)
+{
+	int32_t		size = 0;
+	
+	clearTOT();
+	
+	STATUS state = TDT::parse( sec);
+	if( state != SUCCESS) {
+		return state;
+	}
+	if( table_id == TDT_ID) {
+		return SUCCESS;
+	}
+	
+	if( sec.length() < TO_PARSE_SIZE) {
+		return ERROR_PARSE_SECTION;
+	}
+	
+	reserved_2				= (sec[ 0] >> 4) & 0x0f;
+	descriptors_loop_length	= ((sec[ 0] & 0x0f) << 8) + sec[ 1];
+	sec += TO_PARSE_SIZE;
+
+	size = parseDescriptors( sec, descriptors_loop_length, &descriptors);
+	if( size == -1) {
+		return ERROR_PARSE_SECTION;
+	}
+	sec += size;
+	
+	erase_buffer = true;
+	return SUCCESS;
+}
+
+bool TOT::checkID( uint8_t id)
+{
+	if( TDT::checkID( id)) {
+		return true;
+	}
+	else if( id == TOT_ID) {
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+
+void TOT::clearTOT()
+{
+	clearDescriptors( &descriptors);
+}
+

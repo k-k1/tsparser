@@ -17,7 +17,7 @@ Header::~Header()
 {
 }
 
-int Header::getBytes( uint8_t *buf, uint32_t size)
+int Header::getBytes( uint8_t *buf, uint32_t size) const
 {
 	if( size < TS_HEADER_SZIE) {
 		return -1;
@@ -70,9 +70,9 @@ AdaptationField::AdaptationField()
 #endif
 }
 
-AdaptationField::AdaptationField( AdaptationField &src)
+AdaptationField::AdaptationField( const AdaptationField &src)
 {
-	src.copy( *this);
+	copy( &src);
 }
 
 AdaptationField::~AdaptationField()
@@ -80,13 +80,51 @@ AdaptationField::~AdaptationField()
 	clear();
 }
 
-AdaptationField& AdaptationField::operator=( AdaptationField &src)
+void AdaptationField::clear()
 {
-	src.copy( *this);
+	if( adaptation_field) {
+		delete[] adaptation_field;
+	}
+	adaptation_field	= NULL;
+	field_data			= NULL;
+	field_data_length	= 0;
+}
+
+AdaptationField& AdaptationField::operator=( const AdaptationField &src)
+{
+	clear();
+	copy( &src);
 	return *this;
 }
 
-int AdaptationField::getBytes( uint8_t *buf, uint32_t size)
+void AdaptationField::copy( const AdaptationField *src)
+{
+	const uint8_t af_len = src->getAdaptationFieldLength();
+
+	if( src->adaptation_field) {
+		adaptation_field = new uint8_t[ af_len + 1];
+		memcpy( adaptation_field, src->adaptation_field, af_len + 1);
+
+		if( src->field_data_length > 0) {
+			field_data_length 	= src->field_data_length;
+			field_data			= &adaptation_field[ 2];
+		}
+	}
+
+#ifdef PACKET_DEBUG
+	adaptation_field_length					= src->adaptation_field_length;
+	discontinuity_indicator					= src->discontinuity_indicator;
+	random_access_indicator					= src->random_access_indicator;
+	elementary_stream_priority_indicator	= src->elementary_stream_priority_indicator;
+	PCR_flag								= src->PCR_flag;
+	OPCR_flag								= src->OPCR_flag;
+	splicing_point_flag						= src->splicing_point_flag;
+	transport_private_data_flag				= src->transport_private_data_flag;
+	adaptation_field_extension_flag			= src->adaptation_field_extension_flag;
+#endif
+}
+
+int AdaptationField::getBytes( uint8_t *buf, uint32_t size) const
 {
 	int	 index = 0;
 	const uint8_t af_len = getAdaptationFieldLength();
@@ -146,45 +184,6 @@ int AdaptationField::parse( uint8_t *buf, uint32_t len)
 	return index;
 }
 
-
-void AdaptationField::copy( AdaptationField &dst)
-{
-	const uint8_t af_len = getAdaptationFieldLength();
-
-	dst.clear();
-	if( adaptation_field) {
-		dst.adaptation_field = new uint8_t[ af_len + 1];
-		memcpy( dst.adaptation_field, adaptation_field, af_len + 1);
-
-		if( field_data_length > 0) {
-			dst.field_data_length 	= field_data_length;
-			dst.field_data			= &dst.adaptation_field[ 2];
-		}
-	}
-
-#ifdef PACKET_DEBUG
-	dst.adaptation_field_length					= adaptation_field_length;
-	dst.discontinuity_indicator					= discontinuity_indicator;
-	dst.random_access_indicator					= random_access_indicator;
-	dst.elementary_stream_priority_indicator	= elementary_stream_priority_indicator;
-	dst.PCR_flag								= PCR_flag;
-	dst.OPCR_flag								= OPCR_flag;
-	dst.splicing_point_flag						= splicing_point_flag;
-	dst.transport_private_data_flag				= transport_private_data_flag;
-	dst.adaptation_field_extension_flag			= adaptation_field_extension_flag;
-#endif
-}
-
-void AdaptationField::clear()
-{
-	if( adaptation_field) {
-		delete[] adaptation_field;
-	}
-	adaptation_field	= NULL;
-	field_data			= NULL;
-	field_data_length	= 0;
-}
-
 TSPacket::TSPacket( Header *h, AdaptationField *af, uint8_t *p, uint32_t p_len)
 {
 	header				= h;
@@ -218,32 +217,32 @@ TSPacket::~TSPacket()
 	payload_length = 0;
 }
 
-uint16_t TSPacket::getPID()
+uint16_t TSPacket::getPID() const
 {
 	return header->getPid();
 }
 
-Header* TSPacket::getHeader()
+Header* TSPacket::getHeader() const
 {
 	return header;
 }
 
-AdaptationField* TSPacket::getAdaptationField()
+AdaptationField* TSPacket::getAdaptationField() const
 {
 	return adaptation_field;
 }
-uint32_t TSPacket::getPayloadLength()
+uint32_t TSPacket::getPayloadLength() const
 {
 	return payload_length;
 }
 
-uint32_t TSPacket::getPayload( uint8_t **p)
+uint32_t TSPacket::getPayload( uint8_t **p) const
 {
 	*p = payload;
 	return payload_length;
 }
 
-int TSPacket::getBytes( uint8_t *buf, uint32_t size)
+int TSPacket::getBytes( uint8_t *buf, uint32_t size) const
 {
 	int	index = 0;
 	int w;

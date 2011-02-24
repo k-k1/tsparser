@@ -15,6 +15,7 @@ class DescriptorParser
 {
 public:
 	Descriptor*	parse( const uint8_t *data, const uint16_t len, uint16_t *parse_size);
+	Descriptor* clone( const Descriptor *des);
 
 protected:
 	virtual Descriptor*	create( const uint8_t tag, const uint8_t length);

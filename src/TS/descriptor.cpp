@@ -54,6 +54,30 @@ Descriptor* DescriptorParser::parse( const uint8_t *data, const uint16_t len, ui
 	return p;
 }
 
+Descriptor* DescriptorParser::clone( const Descriptor *des)
+{
+	int16_t		ret;
+	Descriptor	*p = NULL;
+
+	p = create( des->descriptor_tag, des->descriptor_length);
+	if( !p) {
+		return p;
+	}
+
+	ret = p->parse( des->descriptor.begin(), des->descriptor.size());
+	if( ret < 0) {
+		fprintf( stderr, "Descriptor clone error tag = 0x%02X", des->descriptor_tag);
+		delete p;
+		p = NULL;
+	}
+	else if( ret != des->descriptor_length) {
+		fprintf( stderr, "clone des overflow tag = 0x%02X, len = %d, ret = %d\n", des->descriptor_tag, des->descriptor_length, ret);
+		delete p;
+		p = NULL;
+	}
+	return p;
+}
+
 Descriptor* DescriptorParser::create( const uint8_t tag, const uint8_t length)
 {
 	Descriptor *p = NULL;
