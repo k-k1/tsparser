@@ -28,7 +28,7 @@ void printPAT( Section *sec)
 	PAT *pat = (PAT *)sec;
 
 	fprintf( stdout, "\n[ PAT ]\n");
-	fprintf( stdout, "table id                           = %5u\n", pat->table_id);
+	fprintf( stdout, "table id                           = 0x%02X\n", pat->table_id);
 	fprintf( stdout, "section syntax indicator           = %5u\n", pat->section_syntax_indicator);
 	fprintf( stdout, "section length                     = %5u\n", pat->section_length);
 	fprintf( stdout, "transport stream id                = %5u\n", pat->psi_id.transport_stream_id);
@@ -49,7 +49,7 @@ void printCAT( Section *sec)
 	CAT *cat = (CAT *)sec;
 
 	fprintf( stdout, "\n[ CAT ]\n");
-	fprintf( stdout, "table id                           = %5u\n", cat->table_id);
+	fprintf( stdout, "table id                           = 0x%02X\n", cat->table_id);
 	fprintf( stdout, "section syntax indicator           = %5u\n", cat->section_syntax_indicator);
 	fprintf( stdout, "section length                     = %5u\n", cat->section_length);
 	fprintf( stdout, "version number                     = %5u\n", cat->version_number);
@@ -69,7 +69,7 @@ void printTSDT( Section *sec)
 	TSDT *tsdt = (TSDT *)sec;
 
 	fprintf( stdout, "\n[ TSDT ]\n");
-	fprintf( stdout, "table id                           = %5u\n", tsdt->table_id);
+	fprintf( stdout, "table id                           = 0x%02X\n", tsdt->table_id);
 	fprintf( stdout, "section syntax indicator           = %5u\n", tsdt->section_syntax_indicator);
 	fprintf( stdout, "section length                     = %5u\n", tsdt->section_length);
 	fprintf( stdout, "version number                     = %5u\n", tsdt->version_number);
@@ -90,7 +90,7 @@ void printPMT( Section *sec)
 	PMT::DESCRIPTORS::iterator d;
 
 	fprintf( stdout, "\n[ PMT ]\n");
-	fprintf( stdout, "table id                           = %5u\n", pmt->table_id);
+	fprintf( stdout, "table id                           = 0x%02X\n", pmt->table_id);
 	fprintf( stdout, "section syntax indicator           = %5u\n", pmt->section_syntax_indicator);
 	fprintf( stdout, "section length                     = %5u\n", pmt->section_length);
 	fprintf( stdout, "program number                     = %5u\n", pmt->psi_id.program_number);
@@ -352,6 +352,33 @@ void printSDT( Section *sec)
 	}
 }
 
+void printTOT( Section *sec)
+{
+	TOT *tot = (TOT *)sec;
+
+	if( tot->table_id == TDT::TDT_ID) {
+		fprintf( stdout, "\n[ TDT ]\n");
+	}
+	else {
+		fprintf( stdout, "\n[ TOT ]\n");
+	}
+	fprintf( stdout, "table id                           = 0x%02X\n", tot->table_id);
+	fprintf( stdout, "section syntax indicator           = %5u\n", tot->section_syntax_indicator);
+	fprintf( stdout, "section length                     = %5u\n", tot->section_length);
+	fprintf( stdout, "JST_time                           = %s", asctime( localtime( &tot->JST_time)));
+
+	if( tot->table_id == TOT::TOT_ID) {
+		fprintf( stdout, "descriptors_loop_length            = %5u\n", tot->descriptors_loop_length);
+		
+		TOT::DESCRIPTORS::iterator d;
+		for( d = tot->descriptors.begin(); d != tot->descriptors.end(); d++) {
+			fprintf( stdout, "  descriptor_tag                   = 0x%02X\n", (*d)->descriptor_tag);
+			fprintf( stdout, "  descriptor_length                = %5u\n", (*d)->descriptor_length);
+		}
+	}
+}
+
+
 
 int main( int argc, char **argv)
 {
@@ -366,7 +393,6 @@ int main( int argc, char **argv)
 	uint32_t	read_len;
 	uint32_t	offset = 0;
 	ssize_t		file_read_size;
-	bool		output_ts = false;
 
 	TSPacket			*ts = NULL;
 	Section::STATUS		status;
@@ -383,11 +409,6 @@ int main( int argc, char **argv)
 	}
 
 	filename = argv[ 1];
-#if 0
-	if( argc >= 3) {
-		output_ts = true;
-	}
-#endif
 
 	if( strcmp( filename, "-") == 0) {
 		fd = 0;
@@ -396,33 +417,21 @@ int main( int argc, char **argv)
 		fd = open( filename, O_RDONLY);
 	}
 	if( fd == -1) {
-		fprintf( stderr, "%s is not opened.\n", filename);
+		fprintf( stderr, "%s is not open.\n", filename);
 		return 1;
 	}
 
-	secs[ 0x0000] = new PAT( &des_parser);
-	secs[ 0x0001] = new CAT( &des_parser);
-	secs[ 0x0002] = new TSDT( &des_parser);
-	secs[ 0x0010] = new NIT( &des_parser);
-	secs[ 0x0011] = new SDT( &des_parser);
-	secs[ 0x0012] = new EIT( &des_parser);
-	secs[ 0x0026] = new EIT( &des_parser);
-	secs[ 0x0027] = new EIT( &des_parser);
+	secs[ PID_PAT ] = new PAT( &des_parser);
+	secs[ PID_CAT ] = new CAT( &des_parser);
+	secs[ PID_TSDT] = new TSDT( &des_parser);
+	secs[ PID_NIT ] = new NIT( &des_parser);
+	secs[ PID_SDT ] = new SDT( &des_parser);
+	secs[ PID_EIT ] = new EIT( &des_parser);
+	secs[ PID_TOT ] = new TOT( &des_parser);
+	secs[ PID_EIT1] = new EIT( &des_parser);
+	secs[ PID_EIT2] = new EIT( &des_parser);
 
-	int32_t	t_err_pid;
-
-	int ofd = -1;
-	uint8_t	write_buf[ 1024];
-	bool	save_flag = false;
-	uint16_t			pmt_pid = 0;
-	uint8_t				pat_counter = 0;
-	uint8_t				pmt_counter = 0;
-	std::set< uint16_t>	save_pid;
-
-	save_pid.insert( 0x0000);
-	save_pid.insert( 0x0001);
-	save_pid.insert( 0x0010);
-	save_pid.insert( 0x0011);
+	std::set< uint16_t>	pcr_pid;
 
 	while( (file_read_size = read( fd, buf + offset, buf_size - offset) + offset) > 0 ) {
 		index = 0;
@@ -437,60 +446,51 @@ int main( int argc, char **argv)
 				index += TS::TSPacket::TS_PACKET_SIZE;
 				continue;
 			}
-//			index += read_len;
 			pid = ts->getPID();
+#if 0
+			if( pcr_pid.find( pid) != pcr_pid.end()) {
+				uint64_t pcr = ts->getAdaptationField()->getProgramClockReference();
+				fprintf( stdout, "***** PCR = %lu, PID =  0x%04X *****\n", pcr, pid);
+			}
+#endif
 			sec_it = secs.find( pid);
 			if( sec_it != secs.end()) {
 				payload_index = 0;
 				do {
 					status = sec_it->second->append( ts, &payload_index);
 					if( status == Section::SUCCESS || status == Section::INCLUDE_NEW_SECTION) {
-						if( sec_it->first == 0x0000) {
+						if( sec_it->first == PID_PAT) {
 							//printPAT( sec_it->second);
 
 							PAT *pat = (PAT *)sec_it->second;
 							PAT::PROGRAM_MAP::iterator it;
 							SECTIONS::iterator pmt;
-#if 0
+							
 							for( it = pat->program_map_PID.begin(); it != pat->program_map_PID.end(); it++) {
 								pmt = secs.find( it->second);
 								if( pmt == secs.end()) {
 									secs[ it->second] = new PMT( &des_parser);
-									save_pid.insert( it->second);
 									fprintf( stderr, "new pid 0x%04X, program number %u\n", it->second, it->first);
-									if( pmt_pid == 0) {
-										pmt_pid = it->second;
-									}
 								}
 							}
-#else
-							save_pid.insert( pat->network_PID);
-							it = pat->program_map_PID.begin();
-							std::advance( it, 1);
-							pat->program_map_PID.erase( it, pat->program_map_PID.end());
-							it = pat->program_map_PID.begin();
-							if( secs.find( it->second) == secs.end()) {
-								secs[ it->second] = new PMT( &des_parser);
-								save_pid.insert( it->second);
-								fprintf( stderr, "new pid 0x%04X, program number %u\n", it->second, it->first);
-								pmt_pid = it->second;
-							}
-#endif
 						}
-						else if( sec_it->first == 0x0001) {
+						else if( sec_it->first == PID_CAT) {
 							//printCAT( sec_it->second);
 						}
-						else if( sec_it->first == 0x0002) {
+						else if( sec_it->first == PID_TSDT) {
 							//printTSDT( sec_it->second);
 						}
-						else if( sec_it->first == 0x0010) {
+						else if( sec_it->first == PID_NIT) {
 							//printNIT( sec_it->second);
 						}
-						else if( sec_it->first == 0x0011) {
-							///printSDT( sec_it->second);
+						else if( sec_it->first == PID_SDT) {
+							//printSDT( sec_it->second);
 						}
-						else if( (sec_it->first == 0x0012 || sec_it->first == 0x0026 || sec_it->first == 0x0027)) {
+						else if( (sec_it->first == PID_EIT || sec_it->first == PID_EIT1 || sec_it->first == PID_EIT2)) {
 							printEIT( sec_it->second);
+						}
+						else if( sec_it->first == PID_TOT) {
+							//printTOT( sec_it->second);
 						}
 						else {
 							if( sec_it->second->table_id == PMT::ID) {
@@ -500,48 +500,9 @@ int main( int argc, char **argv)
 								PMT::DESCRIPTORS::iterator	d;
 								PMT::ELEMENTS::iterator	e;
 
-								//if( pmt_pid == sec_it->first) {
-									if( save_pid.find( pmt->PCR_PID) == save_pid.end()) {
-										save_pid.insert( pmt->PCR_PID);
-										fprintf( stderr, "new pid 0x%04X, PCR, cur pid 0x%04X\n", pmt->PCR_PID, sec_it->first);
-									}
-
-									for( d = pmt->program_info_descriptors.begin(); d != pmt->program_info_descriptors.end(); d++) {
-										if( (*d)->descriptor_tag == ConditionalAccess::TAG) {
-											ConditionalAccess *ca = (ConditionalAccess *)*d;
-											if( save_pid.find( ca->CA_PID) == save_pid.end()) {
-												//secs[ ca->CA_PID] = new CAT( &des_parser);
-												if( ca->CA_PID != 0x1FFF) {
-													save_pid.insert( ca->CA_PID);
-													fprintf( stderr, "new pid 0x%04X, CA ID %u, cur pid 0x%04X\n", ca->CA_PID, ca->CA_system_ID, sec_it->first);
-												}
-											}
-										}
-									}
-
-									pmt->eraseElement( 0x0D);
-
-									for( e = pmt->elements.begin(); e != pmt->elements.end(); e++) {
-										if( save_pid.find( e->elementary_PID) == save_pid.end()) {
-											save_pid.insert( e->elementary_PID);
-											fprintf( stderr, "new pid 0x%04X, stream_type 0x%02X, cur pid 0x%04X\n", e->elementary_PID, e->stream_type, sec_it->first);
-										}
-
-										for( d = e->descriptors.begin(); d != e->descriptors.end(); d++) {
-											if( (*d)->descriptor_tag == ConditionalAccess::TAG) {
-												ConditionalAccess *ca = (ConditionalAccess *)*d;
-												if( save_pid.find( ca->CA_PID) == save_pid.end()) {
-													//secs[ ca->CA_PID] = new CAT( &des_parser);
-													if( ca->CA_PID != 0x1FFF) {
-														save_pid.insert( ca->CA_PID);
-														fprintf( stderr, "new pid 0x%04X, CA ID %u, cur pid 0x%04X\n", ca->CA_PID, ca->CA_system_ID, sec_it->first);
-													}
-												}
-											}
-										}
-									}
-									save_flag = true;
-								//}
+								if( pcr_pid.find( pmt->PCR_PID) == pcr_pid.end()) {
+									pcr_pid.insert( pmt->PCR_PID);
+								}
 							}
 						}
 					}
@@ -550,62 +511,7 @@ int main( int argc, char **argv)
 					}
 				} while( status == Section::INCLUDE_NEW_SECTION);
 			}
-#if 0
-			if( ofd == -1 && output_ts) {
-				ofd = open( "output.ts", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-			}
-
-			if( ofd > 0) {
-				if( ts->getPID() == 0x0000) {
-					PAT *pat = (PAT *)secs[ 0x0000];
-					if( pat->finish()) {
-						TSPacket *tmp_ts;
-						status = pat->getTSPacket( &tmp_ts, &pat_counter, ts->getAdaptationField());
-						if( status != Section::SUCCESS) {
-							fprintf( stderr, "PAT TS Packet rebuild error: %d\n", status);
-						}
-						else {
-							int w = tmp_ts->getBytes( write_buf, 1024);
-							if( w > 0) {
-								::write( ofd, &write_buf, w);
-							}
-						}
-					}
-				}
-				else if( ts->getPID() == pmt_pid) {
-					PMT *pmt = (PMT *)secs[ pmt_pid];
-					if( pmt->finish()) {
-						TSPacket *tmp_ts;
-						status = pmt->getTSPacket( &tmp_ts, &pmt_counter, ts->getAdaptationField());
-						if( status != Section::SUCCESS) {
-							fprintf( stderr, "PMT TS Packet rebuild error: %d\n", status);
-						}
-						else {
-							int w = tmp_ts->getBytes( write_buf, 1024);
-							if( w > 0) {
-								::write( ofd, &write_buf, w);
-							}
-						}
-					}
-				}
-				else if( save_pid.find( ts->getPID()) != save_pid.end()) {
-					int w = ts->getBytes( write_buf, 1024);
-					if( memcmp( write_buf, &buf[ index], w) != 0) {
-						fprintf( stderr, "TS Packet rebuild error: PID = 0x%04X\n", ts->getPID());
-						int i;
-						for( i = 0; i < w; i++) {
-							if( write_buf[ i] != buf[ index + i]) {
-								fprintf( stderr, "TS Packet rebuild error index = %d\n", i);
-								break;
-							}
-						}
-					}
-					if( w > 0) {
-						::write( ofd, &write_buf, w);
-					}
-				}
-			}
-#endif
+			
 			index += read_len;
 		}
 		offset = file_read_size - index;
@@ -615,9 +521,6 @@ int main( int argc, char **argv)
 EXIT:
 	if( fd > 0) {
 		close( fd);
-	}
-	if( ofd > 0) {
-		close( ofd);
 	}
 
 	for( sec_it = secs.begin(); sec_it != secs.end(); sec_it++) {

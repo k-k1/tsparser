@@ -150,7 +150,8 @@ const TS::SectionBuffer* ConditionalAccess::getPrivateData()
 {
 	return &private_data;
 }
-int16_t ConditionalAccess::parse( const uint8_t *data, const uint16_t len)
+
+int16_t ConditionalAccess::parse( const uint8_t *data, const uint16_t len)
 {
 	int16_t			index = 0;
 
