@@ -121,7 +121,7 @@ NIT::STATUS NIT::parse( SectionBuffer &sec)
 
 bool NIT::checkID( uint8_t id)
 {
-	if( id == 0x40 || id <= 0x41) {
+	if( id == 0x40 || id == 0x41) {
 		return true;
 	}
 	else {
@@ -207,7 +207,7 @@ SDT::STATUS SDT::parse( SectionBuffer &sec)
 
 bool SDT::checkID( uint8_t id)
 {
-	if( id == 0x42 || id <= 0x46) {
+	if( id == 0x42 || id == 0x46) {
 		return true;
 	}
 	else {
