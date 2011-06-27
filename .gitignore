@@ -1,0 +1,11 @@
+Makefile
+config.h
+config.log
+config.status
+.deps/
+*.o
+*.a
+stamp-h1
+src/eit2xml
+src/tsparser
+
